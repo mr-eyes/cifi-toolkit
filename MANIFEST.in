@@ -1,0 +1,12 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include CONTRIBUTING.md
+recursive-include src/cifi/templates *.html
+recursive-include src/cifi_cpp *.cpp *.h
+recursive-include extern *.h
+include CMakeLists.txt
+global-exclude *.pyc
+global-exclude __pycache__
+global-exclude *.so
+global-exclude .git*

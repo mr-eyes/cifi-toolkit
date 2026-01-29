@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CiFi {{ report_type }} Report - {{ enzyme }}</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 0 20px;
+      color: #333;
+      line-height: 1.5;
+    }
+    h1 {
+      font-size: 1.5em;
+      font-weight: 500;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 10px;
+      margin-bottom: 5px;
+    }
+    .subtitle {
+      color: #666;
+      font-size: 0.9em;
+      margin-bottom: 2em;
+    }
+    h2 {
+      font-size: 1.1em;
+      font-weight: 500;
+      margin-top: 2em;
+      color: #555;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 5px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1em 0;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    th {
+      background: #f9f9f9;
+      font-weight: 500;
+    }
+    .metrics {
+      display: flex;
+      gap: 40px;
+      margin: 1.5em 0;
+      flex-wrap: wrap;
+    }
+    .metric {
+      text-align: center;
+      min-width: 120px;
+    }
+    .metric-value {
+      font-size: 1.8em;
+      font-weight: 600;
+    }
+    .metric-label {
+      font-size: 0.85em;
+      color: #666;
+    }
+    .plot {
+      margin: 1.5em 0;
+    }
+    .caption {
+      font-size: 0.85em;
+      color: #666;
+      margin-top: 0.5em;
+    }
+    pre {
+      background: #f5f5f5;
+      padding: 12px;
+      font-size: 0.9em;
+      overflow-x: auto;
+      border-radius: 3px;
+    }
+    .file-list {
+      list-style: none;
+      padding: 0;
+    }
+    .file-list li {
+      font-family: monospace;
+      padding: 4px 0;
+    }
+  </style>
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+</head>
+<body>
+
+{# ========== MACROS ========== #}
+
+{% macro render_metrics(metrics) %}
+<div class="metrics">
+  {% for m in metrics %}
+  <div class="metric">
+    <div class="metric-value">{{ m.value }}</div>
+    <div class="metric-label">{{ m.label }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{% macro render_table(headers, rows, caption='') %}
+<table>
+  <tr>
+    {% for h in headers %}
+    <th>{{ h }}</th>
+    {% endfor %}
+  </tr>
+  {% for row in rows %}
+  <tr>
+    {% for cell in row %}
+    <td>{{ cell }}</td>
+    {% endfor %}
+  </tr>
+  {% endfor %}
+</table>
+{% if caption %}
+<div class="caption">{{ caption }}</div>
+{% endif %}
+{% endmacro %}
+
+{% macro render_plot(plot_id, data, xlabel, ylabel, color='#3498db') %}
+{% if data and data.bins and data.counts %}
+<div class="plot" id="{{ plot_id }}"></div>
+<script>
+Plotly.newPlot("{{ plot_id }}", [{
+  x: {{ data.bins | tojson }},
+  y: {{ data.counts | tojson }},
+  type: "bar",
+  marker: {color: "{{ color }}"}
+}], {
+  paper_bgcolor: "white",
+  plot_bgcolor: "white",
+  margin: {t: 30, r: 20, b: 50, l: 60},
+  font: {family: "system-ui, sans-serif", size: 12},
+  xaxis: {gridcolor: "#eee", zerolinecolor: "#ddd", linecolor: "#ddd", title: "{{ xlabel }}"},
+  yaxis: {gridcolor: "#eee", zerolinecolor: "#ddd", linecolor: "#ddd", title: "{{ ylabel }}"}
+}, {displayModeBar: false, responsive: true});
+</script>
+{% else %}
+<div class="plot" id="{{ plot_id }}"><p>No data available</p></div>
+{% endif %}
+{% endmacro %}
+
+{% macro render_file_list(files) %}
+<ul class="file-list">
+  {% for f in files %}
+  <li>{{ f }}</li>
+  {% endfor %}
+</ul>
+{% endmacro %}
+
+{% macro format_enzyme_site(site, cut_offset) %}
+{{ site[:cut_offset] }}|{{ site[cut_offset:] }}
+{% endmacro %}
+
+{# ========== REPORT CONTENT ========== #}
+
+<h1>CiFi {{ report_type }} Report - {{ enzyme }}</h1>
+<div class="subtitle">{{ input_file }} | {{ timestamp }}</div>
+
+{% if report_type == 'QC' %}
+{# ========== QC REPORT ========== #}
+
+<h2>Summary</h2>
+{{ render_metrics(summary_metrics) }}
+
+<h2>Enzyme Analysis</h2>
+{{ render_table(['Metric', 'Value'], enzyme_table) }}
+
+{% if read_length_histogram %}
+<h2>Read Length Distribution</h2>
+{{ render_plot('read-length-plot', read_length_histogram, 'Length (bp)', 'Count', '#3498db') }}
+{% endif %}
+
+{% if sites_histogram %}
+<h2>Sites per Read Distribution</h2>
+{{ render_plot('sites-plot', sites_histogram, 'Number of Sites', 'Count', '#27ae60') }}
+{% endif %}
+
+{% if fragment_size_histogram %}
+<h2>Fragment Size Distribution</h2>
+{{ render_plot('frag-size-plot', fragment_size_histogram, 'Fragment Size (bp)', 'Count', '#9b59b6') }}
+{% endif %}
+
+<h2>Recommended Command</h2>
+<pre>cifi digest {{ input_file }} -e {{ enzyme }} -o output</pre>
+
+{% else %}
+{# ========== DIGEST REPORT ========== #}
+
+<h2>Parameters</h2>
+{{ render_table(['Parameter', 'Value'], param_table) }}
+
+<h2>Summary</h2>
+{{ render_metrics(summary_metrics) }}
+
+{% if filter_table %}
+<h2>Filtering Breakdown</h2>
+{{ render_table(['Filter Reason', 'Reads Filtered', '% of Input'], filter_table, filter_caption) }}
+{% endif %}
+
+{% if frag_stats_table %}
+<h2>Fragment Statistics</h2>
+{{ render_table(['Metric', 'Value'], frag_stats_table) }}
+{% endif %}
+
+{% if fragment_length_histogram %}
+<h2>Fragment Length Distribution</h2>
+{{ render_plot('frag-length-plot', fragment_length_histogram, 'Length (bp)', 'Count', '#27ae60') }}
+{% endif %}
+
+{% if sites_per_read_histogram %}
+<h2>Sites per Read Distribution</h2>
+{{ render_plot('sites-per-read-plot', sites_per_read_histogram, 'Number of Sites', 'Count', '#3498db') }}
+{% endif %}
+
+<h2>Output Files</h2>
+{{ render_file_list(output_files) }}
+
+{% endif %}
+
+</body>
+</html>

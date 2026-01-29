@@ -3,8 +3,9 @@
 import json
 import os
 import sys
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
 import click
 
 
@@ -186,7 +187,7 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_fragments, m
     # Fragment length statistics (using Statistics object)
     if result.frag_length_stats.count() > 0:
         frag_stats = result.frag_length_stats
-        click.echo(f"\nFRAGMENT LENGTHS:")
+        click.echo("\nFRAGMENT LENGTHS:")
         click.echo(f"  Range:   {frag_stats.min():,} - {frag_stats.max():,} bp")
         click.echo(f"  Mean:    {frag_stats.mean():,.0f} bp")
         click.echo(f"  Median:  {frag_stats.median():,.0f} bp")
@@ -202,7 +203,7 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_fragments, m
         click.echo(f"  Median:  {sites_stats.median():.0f}")
 
     click.echo("-" * 60)
-    click.echo(f"\nOUTPUT FILES:")
+    click.echo("\nOUTPUT FILES:")
     click.echo(f"  {out_r1}")
     click.echo(f"  {out_r2}")
 
@@ -420,8 +421,8 @@ def qc(input_file, enzyme, site, cut_offset, output, num_reads, min_sites, html,
         click.echo(f"  Total sites found: {qc_result['total_sites']:>12,}")
         click.echo(f"  Sites per read:    {qc_result['sites_per_read_mean']:>12.1f} (mean)")
         click.echo(f"                     {qc_result['sites_per_read_median']:>12.0f} (median)")
-        
-        click.echo(f"\nESTIMATED YIELD:")
+
+        click.echo("\nESTIMATED YIELD:")
         click.echo(f"  Reads with ≥{min_sites} sites: {qc_result['reads_passing']:>10,} ({qc_result['pass_rate']:.1f}%)")
         click.echo(f"  Est. fragments:    {qc_result['est_total_fragments']:>12,}")
         click.echo(f"  Est. pairs:        {qc_result['est_total_pairs']:>12,}")
@@ -429,7 +430,7 @@ def qc(input_file, enzyme, site, cut_offset, output, num_reads, min_sites, html,
         click.echo(f"  Avg pairs/read:    {qc_result['avg_pairs_per_read']:>12.1f}")
 
         if qc_result.get('frag_size_mean'):
-            click.echo(f"\nFRAGMENT SIZE ESTIMATES:")
+            click.echo("\nFRAGMENT SIZE ESTIMATES:")
             click.echo(f"  Mean:              {qc_result['frag_size_mean']:>12,.0f} bp")
             click.echo(f"  Median:            {qc_result['frag_size_median']:>12,.0f} bp")
 
@@ -690,7 +691,7 @@ def filter_cmd(input_bam, output, mapq, threads, report, write_json, quiet):
     pass_rate = result.passed_pairs / result.total_pairs * 100 if result.total_pairs > 0 else 0
 
     if not quiet:
-        click.echo(f"\nFilter Summary")
+        click.echo("\nFilter Summary")
         click.echo(f"{'─' * 40}")
         click.echo(f"Total reads:      {result.total_reads:,}")
         click.echo(f"Total pairs:      {result.total_pairs:,}")
@@ -753,7 +754,7 @@ def filter_cmd(input_bam, output, mapq, threads, report, write_json, quiet):
                 click.echo(f"\nWarning: Report failed: {e}", err=True)
 
     if not quiet:
-        click.echo(f"\nOutput files:")
+        click.echo("\nOutput files:")
         for f in output_files:
             click.echo(f"  {f}")
 

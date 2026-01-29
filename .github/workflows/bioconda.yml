@@ -1,0 +1,23 @@
+name: Bioconda
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-recipe:
+    name: Test bioconda recipe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          channels: conda-forge,bioconda,defaults
+          channel-priority: strict
+
+      - name: Install conda-build
+        run: conda install -y conda-build conda-verify
+
+      - name: Build recipe
+        run: conda build recipe/ --no-test

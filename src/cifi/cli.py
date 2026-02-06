@@ -192,7 +192,7 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_fragments, m
         click.echo(f"  Mean:    {frag_stats.mean():,.0f} bp")
         click.echo(f"  Median:  {frag_stats.median():,.0f} bp")
         if not fast_mode:
-            click.echo(f"  IQR:     {frag_stats.percentile(25):,.0f} - {frag_stats.percentile(75):,.0f} bp")
+            click.echo(f"  IQR:     {frag_stats.percentile(0.25):,.0f} - {frag_stats.percentile(0.75):,.0f} bp")
 
     # Sites per read statistics (using Statistics object)
     if result.sites_per_read_stats.count() > 0:
@@ -255,8 +255,8 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_fragments, m
             "median": result.frag_length_stats.median(),
         }
         if not fast_mode:
-            stats_data["fragment_lengths"]["q25"] = result.frag_length_stats.percentile(25)
-            stats_data["fragment_lengths"]["q75"] = result.frag_length_stats.percentile(75)
+            stats_data["fragment_lengths"]["q25"] = result.frag_length_stats.percentile(0.25)
+            stats_data["fragment_lengths"]["q75"] = result.frag_length_stats.percentile(0.75)
             # Histogram from raw values (only available in exact mode)
             frag_values = list(result.frag_length_stats.values())
             if frag_values:

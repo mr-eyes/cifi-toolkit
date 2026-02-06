@@ -40,6 +40,11 @@ double Statistics::median() const {
 double Statistics::percentile(double p) const {
     if (count_ == 0) return 0.0;
 
+    // Normalize: accept both 0-1 and 0-100 ranges
+    if (p > 1.0) p /= 100.0;
+    if (p < 0.0) p = 0.0;
+    if (p > 1.0) p = 1.0;
+
     if (fast_mode_) {
         return percentile_from_histogram(p);
     }

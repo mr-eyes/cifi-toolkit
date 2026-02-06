@@ -1,6 +1,6 @@
 [project]
 name = "cifi"
-version = "0.2.0"
+version = "0.2.1"
 description = "CiFi - toolkit for downstream processing of CiFi long reads."
 authors = ["Mohamed Abuelanin <mabuelanin@gmail.com>"]
 channels = ["conda-forge", "bioconda"]
@@ -31,6 +31,7 @@ docs = "echo 'Documentation not yet configured'"
 # Release tasks (via GitHub Actions)
 release-testpypi = "gh workflow run release.yml -f publish_to=testpypi"
 release-pypi = "gh workflow run release.yml -f publish_to=pypi"
+release-github = "gh release create v$(python -c \"import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])\") --generate-notes"
 
 # Quick validation before commit
 check = { depends-on = ["lint", "format-check", "test"] }

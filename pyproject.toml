@@ -10,10 +10,10 @@ readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.9"
 authors = [
-    {name = "Dennis Lab", email = "mhussien@ucdavis.edu"}
+    {name = "Mohamed Abuelanin", email = "mabuelanin@gmail.com"}
 ]
 maintainers = [
-    {name = "Mohamed Abuelanin", email = "mhussien@ucdavis.edu"}
+    {name = "Mohamed Abuelanin", email = "mabuelanin@gmail.com"}
 ]
 keywords = [
     "bioinformatics",
@@ -21,6 +21,9 @@ keywords = [
     "chromosome-conformation-capture",
     "cifi",
     "hi-c",
+    "pore-c",
+    "porec",
+    "hic",
     "restriction-enzyme", 
     "paired-end",
     "long-reads",
@@ -33,7 +36,6 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
-    "Operating System :: MacOS",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",

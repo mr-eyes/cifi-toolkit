@@ -1,5 +1,5 @@
 {% set name = "cifi" %}
-{% set version = "0.2.1" %}
+{% set version = "0.2.2" %}
 
 package:
   name: {{ name|lower }}
@@ -7,7 +7,7 @@ package:
 
 source:
   url: https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz
-  sha256: UPDATE_AFTER_FIRST_RELEASE
+  sha256: UPDATE_AFTER_PYPI_RELEASE
 
 build:
   number: 0

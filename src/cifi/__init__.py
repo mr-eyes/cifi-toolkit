@@ -4,7 +4,7 @@ cifi - toolkit for downstream processing of CiFi long reads.
 https://dennislab.org/cifi
 """
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 
 from ._core import (
     FilterResult,

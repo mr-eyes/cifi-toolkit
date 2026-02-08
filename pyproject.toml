@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "cifi"
-version = "0.2.2"
+version = "0.2.3"
 description = "CiFi - toolkit for downstream processing of CiFi long reads."
 readme = "README.md"
 license = {text = "MIT"}
@@ -81,8 +81,9 @@ Changelog = "https://github.com/mr-eyes/cifi-toolkit/releases"
 
 [tool.scikit-build]
 wheel.packages = ["src/cifi"]
-cmake.verbose = true
+build.verbose = true
 build-dir = "build/{wheel_tag}"
+ninja.make-fallback = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

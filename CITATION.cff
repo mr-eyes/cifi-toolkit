@@ -1,0 +1,41 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the following article."
+title: "Single-library chromosome-scale diploid assemblies of vole genomes resolve a species-specific duplication implicated in pair bonding"
+type: article
+authors:
+  - family-names: Abuelanin
+    given-names: Mohamed
+  - family-names: Kaya
+    given-names: Gulhan
+  - family-names: Lake
+    given-names: Juniper A
+  - family-names: Lambert
+    given-names: Christine
+  - family-names: Wu
+    given-names: Melody V
+  - family-names: Berendzen
+    given-names: Kristen
+  - family-names: Krasheninnikova
+    given-names: Ksenia
+  - family-names: Wood
+    given-names: Jonathan MD
+  - family-names: Solomon
+    given-names: Nancy G
+  - family-names: Donaldson
+    given-names: Zoe R
+  - family-names: Bales
+    given-names: Karen L
+  - family-names: Howe
+    given-names: Kerstin
+  - family-names: Korlach
+    given-names: Jonas
+  - family-names: Manoli
+    given-names: Devanand S
+  - family-names: Tollkuhn
+    given-names: Jessica
+  - family-names: Dennis
+    given-names: Megan Y
+journal: bioRxiv
+year: 2026
+doi: 10.64898/2026.03.13.711624
+url: https://www.biorxiv.org/content/early/2026/03/17/2026.03.13.711624

@@ -1,5 +1,5 @@
 // cifi - Toolkit for downstream processing of CiFi long reads.
-// https://dennislab.org/cifi
+// https://voles.dennislab.org
 
 #include <nanobind/nanobind.h>
 #include <nanobind/stl/string.h>

@@ -16,7 +16,7 @@ from . import __version__
 def main():
     """CiFi - toolkit for downstream processing of CiFi long reads.
 
-    https://dennislab.org/cifi
+    https://voles.dennislab.org
     """
     pass
 

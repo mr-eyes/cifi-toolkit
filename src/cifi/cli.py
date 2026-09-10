@@ -66,12 +66,17 @@ def _validate_site(ctx, param, value):
     help="Minimum fragments required per read"
 )
 @click.option(
-    "-l", "--min-frag-len", default=20, show_default=True,
-    help="Minimum fragment length (bp)"
+    "-l", "--min-frag-len", default=60, show_default=True,
+    help="Minimum length of an emitted read (bp). Guaranteed for both R1 and R2."
 )
 @click.option(
-    "--strip-overhang/--revcomp-r2", default=True, show_default=True,
-    help="R2 processing: strip enzyme overhang (default) or reverse complement"
+    "--strip-overhang/--no-strip-overhang", default=True, show_default=True,
+    help="Drop the 5' site remnant from fragments that begin at a cut"
+)
+@click.option(
+    "--revcomp-r2/--no-revcomp-r2", default=False, show_default=True,
+    help="Reverse complement R2 (applied after stripping). Off by default: "
+         "fragments keep the orientation they were sequenced in."
 )
 @click.option(
     "--report/--no-report", default=True, show_default=True,
@@ -90,8 +95,11 @@ def _validate_site(ctx, param, value):
     help="Use streaming statistics (lower memory, approximate percentiles)"
 )
 def digest(input_file, enzyme, site, cut_offset, output_prefix, min_fragments, min_frag_len,
-           strip_overhang, report, write_json, gzip_output, fast_mode):
+           strip_overhang, revcomp_r2, report, write_json, gzip_output, fast_mode):
     """In-silico restriction digestion, generating paired-end FASTQ.
+
+    Both mates of a pair share one read name, and -l bounds the length of the
+    emitted reads, so R1 and R2 stay in step and neither drops below the cutoff.
 
     \b
     Examples:
@@ -141,7 +149,9 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_fragments, m
     click.echo(f"Enzyme:      {enzyme_name} ({site})")
     click.echo(f"Cut position: {cut_offset} (0-indexed)")
     click.echo(f"Min frags:   {min_fragments}")
-    click.echo(f"Min length:  {min_frag_len} bp")
+    click.echo(f"Min read len: {min_frag_len} bp (emitted R1/R2)")
+    click.echo(f"Overhang:    {'stripped' if strip_overhang else 'kept'}")
+    click.echo(f"R2 strand:   {'reverse complement' if revcomp_r2 else 'native'}")
     click.echo(f"Compression: {'gzip' if use_gzip else 'none'}")
     click.echo(f"Stats mode:  {'fast (approximate)' if fast_mode else 'exact'}")
     click.echo("-" * 60)
@@ -151,12 +161,12 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_fragments, m
         if use_custom:
             result = process_reads_custom(
                 input_file, out_r1, out_r2, site, cut_offset, min_fragments, min_frag_len,
-                strip_overhang, use_gzip, fast_mode
+                strip_overhang, use_gzip, fast_mode, revcomp_r2
             )
         else:
             result = process_reads(
                 input_file, out_r1, out_r2, enzyme, min_fragments, min_frag_len, strip_overhang,
-                use_gzip, fast_mode
+                use_gzip, fast_mode, revcomp_r2
             )
     except Exception as e:
         click.echo(f"\nError: {e}", err=True)
@@ -224,6 +234,7 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_fragments, m
             "min_fragments": min_fragments,
             "min_frag_len": min_frag_len,
             "strip_overhang": strip_overhang,
+            "revcomp_r2": revcomp_r2,
             "gzip_output": use_gzip,
             "fast_mode": fast_mode,
         },

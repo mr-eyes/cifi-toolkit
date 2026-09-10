@@ -12,8 +12,13 @@ namespace cifi {
 struct ProcessingConfig {
     EnzymeInfo enzyme;
     int min_fragments = 3;
-    int min_frag_len = 20;
+    // Minimum length of an *emitted* read, guaranteed for both R1 and R2.
+    int min_frag_len = 60;
+    // Drop the 5' site remnant from fragments that begin at a cut.
     bool strip_overhang = true;
+    // Reverse complement R2 (after any strip). Off by default: fragments keep
+    // the orientation they were sequenced in, as in the Pore-C convention.
+    bool revcomp_r2 = false;
     bool fast_mode = false;
 };
 
@@ -51,12 +56,18 @@ bool process_single_read(
 );
 
 /**
- * Extract fragments from a sequence given enzyme info.
+ * Extract the emitted span of each fragment.
+ *
+ * lead_trim is removed from fragments that begin at a cut site; the read's
+ * leading fragment does not begin at one and so is never trimmed. Spans shorter
+ * than min_emit_len are dropped, which makes min_emit_len a guarantee about the
+ * emitted read rather than about the untrimmed source fragment.
  */
 std::vector<std::pair<size_t, size_t>> extract_fragments(
     const std::string& sequence,
     const EnzymeInfo& enzyme,
-    int min_frag_len
+    int min_emit_len,
+    int lead_trim = 0
 );
 
 } // namespace cifi

@@ -381,10 +381,11 @@ cifi::ProcessingResult process_reads(
     const std::string& output_r2,
     const std::string& enzyme_name,
     int min_fragments = 3,
-    int min_frag_len = 20,
+    int min_frag_len = 60,
     bool strip_overhang = true,
     bool gzip_output = false,
-    bool fast_mode = false
+    bool fast_mode = false,
+    bool revcomp_r2 = false
 ) {
     auto enzyme_opt = cifi::get_enzyme(enzyme_name);
     if (!enzyme_opt) {
@@ -396,6 +397,7 @@ cifi::ProcessingResult process_reads(
     config.min_fragments = min_fragments;
     config.min_frag_len = min_frag_len;
     config.strip_overhang = strip_overhang;
+    config.revcomp_r2 = revcomp_r2;
     config.fast_mode = fast_mode;
 
     cifi::ProcessingResult result(fast_mode);
@@ -421,10 +423,11 @@ cifi::ProcessingResult process_reads_custom(
     const std::string& site,
     int cut_offset,
     int min_fragments = 3,
-    int min_frag_len = 20,
+    int min_frag_len = 60,
     bool strip_overhang = true,
     bool gzip_output = false,
-    bool fast_mode = false
+    bool fast_mode = false,
+    bool revcomp_r2 = false
 ) {
     cifi::EnzymeInfo enzyme{"Custom", site, cut_offset};
 
@@ -433,6 +436,7 @@ cifi::ProcessingResult process_reads_custom(
     config.min_fragments = min_fragments;
     config.min_frag_len = min_frag_len;
     config.strip_overhang = strip_overhang;
+    config.revcomp_r2 = revcomp_r2;
     config.fast_mode = fast_mode;
 
     cifi::ProcessingResult result(fast_mode);
@@ -531,11 +535,14 @@ NB_MODULE(_core, m) {
           nb::arg("output_r2"),
           nb::arg("enzyme"),
           nb::arg("min_fragments") = 3,
-          nb::arg("min_frag_len") = 20,
+          nb::arg("min_frag_len") = 60,
           nb::arg("strip_overhang") = true,
           nb::arg("gzip_output") = false,
           nb::arg("fast_mode") = false,
-          "Process FASTQ or BAM file, generating ALL pairwise contacts (n choose 2).");
+          nb::arg("revcomp_r2") = false,
+          "Process FASTQ or BAM file, generating ALL pairwise contacts (n choose 2).\n"
+          "Mates share a read name; min_frag_len bounds the emitted read length.\n"
+          "R2 keeps native orientation unless revcomp_r2 is set.");
 
     m.def("process_reads_custom", &process_reads_custom,
           nb::arg("input_path"),
@@ -544,11 +551,14 @@ NB_MODULE(_core, m) {
           nb::arg("site"),
           nb::arg("cut_offset"),
           nb::arg("min_fragments") = 3,
-          nb::arg("min_frag_len") = 20,
+          nb::arg("min_frag_len") = 60,
           nb::arg("strip_overhang") = true,
           nb::arg("gzip_output") = false,
           nb::arg("fast_mode") = false,
-          "Process FASTQ or BAM file with custom enzyme site.");
+          nb::arg("revcomp_r2") = false,
+          "Process FASTQ or BAM file with custom enzyme site.\n"
+          "Mates share a read name; min_frag_len bounds the emitted read length.\n"
+          "R2 keeps native orientation unless revcomp_r2 is set.");
 
     // Enzyme utilities
     m.def("list_enzymes", &cifi::list_enzymes, "Get list of available enzyme names");

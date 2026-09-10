@@ -5,7 +5,8 @@ namespace cifi {
 std::vector<std::pair<size_t, size_t>> extract_fragments(
     const std::string& sequence,
     const EnzymeInfo& enzyme,
-    int min_frag_len
+    int min_emit_len,
+    int lead_trim
 ) {
     auto sites = find_all_degenerate(sequence, enzyme.site);
 
@@ -17,12 +18,17 @@ std::vector<std::pair<size_t, size_t>> extract_fragments(
     }
     cuts.push_back(sequence.length());
 
-    // Extract fragments meeting length requirement
+    // Take each fragment's emitted span, then filter on that length. Only a
+    // fragment that begins at a cut carries the site remnant; the read's
+    // leading fragment starts at position 0 and so keeps its full length.
     std::vector<std::pair<size_t, size_t>> fragments;
     for (size_t i = 0; i < cuts.size() - 1; i++) {
         size_t start = cuts[i];
         size_t end = cuts[i + 1];
-        if (end > start && static_cast<int>(end - start) >= min_frag_len) {
+        if (start > 0) {
+            start += static_cast<size_t>(lead_trim);
+        }
+        if (end > start && static_cast<int>(end - start) >= min_emit_len) {
             fragments.push_back({start, end});
         }
     }
@@ -49,8 +55,13 @@ bool process_single_read(
         return false;
     }
 
-    // Extract fragments
-    auto fragments = extract_fragments(sequence, config.enzyme, config.min_frag_len);
+    // The site remnant belongs to the fragment, not to whichever slot the
+    // fragment lands in, so trim once here and let both mates read the same
+    // spans. min_frag_len then bounds the emitted read directly.
+    int lead_trim = config.strip_overhang ? config.enzyme.overhang_length() : 0;
+
+    auto fragments = extract_fragments(sequence, config.enzyme,
+                                       config.min_frag_len, lead_trim);
 
     // Check fragment count after length filtering
     if (static_cast<int>(fragments.size()) < config.min_fragments) {
@@ -68,9 +79,6 @@ bool process_single_read(
     result.reads_out++;
     result.total_frags += fragments.size();
 
-    // Calculate overhang for R2 stripping
-    int overhang = config.enzyme.overhang_length();
-
     // Generate ALL pairs (n choose 2)
     for (size_t i = 0; i < fragments.size(); i++) {
         for (size_t j = i + 1; j < fragments.size(); j++) {
@@ -82,26 +90,24 @@ bool process_single_read(
             std::string seq2 = sequence.substr(f2.first, f2.second - f2.first);
             std::string qual2 = quality.substr(f2.first, f2.second - f2.first);
 
+            // Fragments arrive already trimmed, so R2 differs from R1 only by
+            // the optional reverse complement.
             std::string r2_seq, r2_qual;
-            if (config.strip_overhang) {
-                if (static_cast<int>(seq2.length()) > overhang) {
-                    r2_seq = seq2.substr(overhang);
-                    r2_qual = qual2.substr(overhang);
-                } else {
-                    r2_seq = seq2;
-                    r2_qual = qual2;
-                }
-            } else {
+            if (config.revcomp_r2) {
                 r2_seq = revcomp(seq2);
-                r2_qual = std::string(qual2.rbegin(), qual2.rend());
+                r2_qual.assign(qual2.rbegin(), qual2.rend());
+            } else {
+                r2_seq = std::move(seq2);
+                r2_qual = std::move(qual2);
             }
 
-            // Build read names
-            std::string r1_name = name + "_" + std::to_string(i) + "_" + std::to_string(j - i - 1) + "/1";
-            std::string r2_name = name + "_" + std::to_string(i) + "_" + std::to_string(j - i - 1) + "/2";
+            // Both mates carry one name: R1/R2 FASTQ has no flags, so the name
+            // is the only thing that identifies a pair. A "/1" or "/2" suffix
+            // would make the two files disagree on every pair.
+            std::string pair_name = name + "_" + std::to_string(i) + "_" + std::to_string(j - i - 1);
 
-            out_r1.write(r1_name, seq1, qual1);
-            out_r2.write(r2_name, r2_seq, r2_qual);
+            out_r1.write(pair_name, seq1, qual1);
+            out_r2.write(pair_name, r2_seq, r2_qual);
 
             result.pairs_written++;
         }

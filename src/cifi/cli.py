@@ -8,6 +8,8 @@ from pathlib import Path
 
 import click
 
+from . import __version__
+
 
 @click.group()
 @click.version_option()
@@ -279,7 +281,7 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_segments, mi
 
     # Build stats data for JSON and report
     stats_data = {
-        "cifi_version": "0.1.0",
+        "cifi_version": __version__,
         "timestamp": datetime.now().isoformat(),
         "input": {
             "file": os.path.basename(input_file),
@@ -549,7 +551,7 @@ def qc(input_file, enzyme, site, cut_offset, output, num_reads, min_sites, html,
 
     # Build full results for output
     results = {
-        "cifi_version": "0.1.0",
+        "cifi_version": __version__,
         "timestamp": datetime.now().isoformat(),
         "analysis_type": "qc",
         "input": {
@@ -817,7 +819,7 @@ def filter_cmd(input_bam, output, mapq, threads, report, write_json, quiet):
     # Build stats data
     output_prefix = output.replace('.bam', '').replace('.BAM', '')
     stats_data = {
-        "cifi_version": "0.1.0",
+        "cifi_version": __version__,
         "timestamp": datetime.now().isoformat(),
         "input": {
             "file": os.path.basename(input_bam),

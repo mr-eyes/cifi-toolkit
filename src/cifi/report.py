@@ -107,6 +107,13 @@ def generate_qc_report(results: Dict[str, Any], output_path: str) -> str:
     return str(output_path)
 
 
+def _param(params, new_key, old_key, default="n/a"):
+    """Read a parameter, tolerating stats files written before the rename."""
+    if new_key in params:
+        return params[new_key]
+    return params.get(old_key, default)
+
+
 def generate_digest_report(stats_data: Dict[str, Any], output_path: str) -> str:
     """Generate HTML report for digest command results.
     """
@@ -121,31 +128,33 @@ def generate_digest_report(stats_data: Dict[str, Any], output_path: str) -> str:
     # Build filter table if applicable
     reads_in = results["reads_in"]
     filtered_few_sites = results.get("filtered_few_sites", 0)
-    filtered_short_segments = results.get("filtered_short_segments", 0)
+    filtered_short_segments = results.get(
+        "filtered_short_segments", results.get("filtered_short_frags", 0))
 
     filter_table = []
     if reads_in > 0 and (filtered_few_sites > 0 or filtered_short_segments > 0):
         if filtered_few_sites > 0:
             pct = 100 * filtered_few_sites / reads_in
             filter_table.append([
-                f'Too few sites (< {params["min_segments"]} segments)',
+                f'Too few sites (< {_param(params, "min_segments", "min_fragments")} segments)',
                 _format_number(filtered_few_sites),
                 f'{pct:.1f}%'
             ])
         if filtered_short_segments > 0:
             pct = 100 * filtered_short_segments / reads_in
             filter_table.append([
-                f'Segments too short (< {params["min_segment_len"]} bp)',
+                f'Segments too short (< {_param(params, "min_segment_len", "min_frag_len")} bp)',
                 _format_number(filtered_short_segments),
                 f'{pct:.1f}%'
             ])
 
     # Build segment stats table if available
-    segment_stats = stats_data.get("segment_lengths")
+    segment_stats = stats_data.get("segment_lengths") or stats_data.get("fragment_lengths")
     segment_stats_table = None
     if segment_stats:
         segment_stats_table = [
-            ["Total Segments", _format_number(results["total_segments"])],
+            ["Total Segments", _format_number(
+                results.get("total_segments", results.get("total_fragments", 0)))],
             ["Mean Length", f'{segment_stats["mean"]:.0f} bp'],
             ["Median Length", f'{segment_stats["median"]:.0f} bp'],
             ["Range", f'{segment_stats["min"]:,} - {segment_stats["max"]:,} bp'],
@@ -161,7 +170,7 @@ def generate_digest_report(stats_data: Dict[str, Any], output_path: str) -> str:
             ["Total Bases", _format_number(inp["total_bases"])],
             ["GC Content", f'{inp["gc_content"]:.1f}%'],
             ["Enzyme Sites", _format_number(inp["total_sites"])],
-            ["Mean Sites / Read", f'{inp["mean_sites_per_read"]:.1f}'],
+            ["Mean Sites / Read (all)", f'{inp["mean_sites_per_read_all"]:.1f}'],
         ]
         if length:
             input_table += [
@@ -203,8 +212,8 @@ def generate_digest_report(stats_data: Dict[str, Any], output_path: str) -> str:
         "param_table": [
             ["Enzyme", params["enzyme"]],
             ["Recognition Site", params.get("enzyme_site", "N/A")],
-            ["Min Segments", str(params["min_segments"])],
-            ["Min Segment Length", f'{params["min_segment_len"]} bp'],
+            ["Min Segments", str(_param(params, "min_segments", "min_fragments"))],
+            ["Min Segment Length", f'{_param(params, "min_segment_len", "min_frag_len")} bp'],
         ],
 
         # Summary metrics
@@ -227,7 +236,8 @@ def generate_digest_report(stats_data: Dict[str, Any], output_path: str) -> str:
         "yield_table": yield_table,
 
         # Histograms
-        "segment_length_histogram": _histogram_to_plot_data(stats_data.get("segment_length_histogram")),
+        "segment_length_histogram": _histogram_to_plot_data(stats_data.get("segment_length_histogram")
+                                                or stats_data.get("fragment_length_histogram")),
         "sites_per_read_histogram": _histogram_to_plot_data(stats_data.get("sites_per_read_histogram")),
         "read_length_histogram": _histogram_to_plot_data((inp.get("length") or {}).get("histogram")),
         "segments_per_read_histogram": _histogram_to_plot_data(

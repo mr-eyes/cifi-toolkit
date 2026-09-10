@@ -46,8 +46,13 @@ def _validate_site(ctx, param, value):
     return value.upper()
 
 
-def _summarize(stats, fast_mode, histogram_bins=None):
-    """Summary dict for a Statistics object, with an optional histogram."""
+def _summarize(stats, fast_mode, histogram_bins=None, integer_valued=False):
+    """Summary dict for a Statistics object, with an optional histogram.
+
+    Histograms are binned in C++ so a report does not copy every recorded value
+    into Python. For integer-valued data the bin count is capped at the number
+    of distinct values, otherwise most bins come out structurally empty.
+    """
     if stats.count() == 0:
         return None
     out = {
@@ -60,10 +65,13 @@ def _summarize(stats, fast_mode, histogram_bins=None):
     if not fast_mode:
         out["q25"] = stats.percentile(0.25)
         out["q75"] = stats.percentile(0.75)
-        if histogram_bins:
-            values = list(stats.values())
-            if values:
-                out["histogram"] = _make_histogram(values, histogram_bins)
+    if histogram_bins:
+        n = histogram_bins
+        if integer_valued:
+            n = max(1, min(n, stats.max() - stats.min() + 1))
+        edges, counts = stats.binned(n)
+        if edges:
+            out["histogram"] = {"bins": list(edges), "counts": list(counts)}
     return out
 
 
@@ -173,6 +181,10 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_segments, mi
     click.echo(f"Min read len: {min_segment_len} bp (emitted R1/R2)")
     click.echo(f"Overhang:    {'stripped' if strip_overhang else 'kept'}")
     click.echo(f"R2 strand:   {'reverse complement' if revcomp_r2 else 'native'}")
+    _trim = len(site) - cut_offset if 0 < cut_offset < len(site) else (len(site) if cut_offset == 0 else 0)
+    if strip_overhang and _trim == 0:
+        click.echo(f"Warning: --strip-overhang has no effect for {enzyme_name}: the cut "
+                   f"leaves no 5' remnant on the downstream segment.", err=True)
     click.echo(f"Compression: {'gzip' if use_gzip else 'none'}")
     click.echo(f"Stats mode:  {'fast (approximate)' if fast_mode else 'exact'}")
     click.echo("-" * 60)
@@ -203,6 +215,7 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_segments, mi
         click.echo(f"  Total bases:       {result.total_bases_in:>12,}")
         click.echo(f"  GC content:        {100.0 * result.gc_bases_in / result.total_bases_in:>11.1f}%")
         click.echo(f"  Enzyme sites:      {result.total_sites:>12,}")
+        click.echo(f"  Sites/read (all):  {result.total_sites / result.reads_in:>12.1f}")
         rl = result.read_length_stats
         if rl.count() > 0:
             click.echo(f"  Read length:       {rl.min():,} - {rl.max():,} bp "
@@ -239,7 +252,7 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_segments, mi
     # Sites per read statistics (using Statistics object)
     if result.sites_per_read_stats.count() > 0:
         sites_stats = result.sites_per_read_stats
-        click.echo(f"\nSITES PER READ ({enzyme_name}):")
+        click.echo(f"\nSITES PER READ ({enzyme_name}, passing reads):")
         click.echo(f"  Range:   {sites_stats.min()} - {sites_stats.max()}")
         click.echo(f"  Mean:    {sites_stats.mean():.1f}")
         click.echo(f"  Median:  {sites_stats.median():.0f}")
@@ -251,12 +264,13 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_segments, mi
         click.echo(f"  Bases in:          {result.total_bases_in:>12,}")
         click.echo(f"  Bases in segments: {bases_in_segments:>12,} "
                    f"({100.0 * bases_in_segments / result.total_bases_in:.1f}% retained)")
-        click.echo(f"  Bases written:     {bases_out:>12,} "
-                   f"({bases_out / bases_in_segments:.1f}x, segments reused across pairs)"
-                   if bases_in_segments else "")
+        if bases_in_segments:
+            click.echo(f"  Bases written:     {bases_out:>12,} "
+                       f"({bases_out / bases_in_segments:.1f}x, segments reused across pairs)")
         click.echo(f"  Trimmed overhang:  {result.bases_trimmed_overhang:>12,}")
         click.echo(f"  Dropped (< {min_segment_len}bp):  {result.bases_dropped_short:>12,} "
                    f"in {result.segments_dropped_short:,} segments")
+        click.echo(f"  In filtered reads: {result.bases_in_filtered_reads:>12,}")
 
     click.echo("-" * 60)
     click.echo("\nOUTPUT FILES:")
@@ -315,9 +329,9 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_segments, mi
             stats_data["segment_lengths"]["q25"] = result.segment_length_stats.percentile(0.25)
             stats_data["segment_lengths"]["q75"] = result.segment_length_stats.percentile(0.75)
             # Histogram from raw values (only available in exact mode)
-            segment_values = list(result.segment_length_stats.values())
-            if segment_values:
-                stats_data["segment_length_histogram"] = _make_histogram(segment_values, 50)
+    seg_hist = _summarize(result.segment_length_stats, fast_mode, 50)
+    if seg_hist and "histogram" in seg_hist:
+        stats_data["segment_length_histogram"] = seg_hist["histogram"]
 
     # Input profile: every read, including ones the filters later skipped
     bases_in = result.total_bases_in
@@ -326,7 +340,7 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_segments, mi
         "total_bases": bases_in,
         "gc_content": 100.0 * result.gc_bases_in / bases_in if bases_in else 0,
         "total_sites": result.total_sites,
-        "mean_sites_per_read": result.total_sites / result.reads_in if result.reads_in else 0,
+        "mean_sites_per_read_all": result.total_sites / result.reads_in if result.reads_in else 0,
         "length": _summarize(result.read_length_stats, fast_mode, 50),
     }
 
@@ -337,6 +351,7 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_segments, mi
     stats_data["yield"] = {
         "bases_in": bases_in,
         "bases_in_segments": bases_in_segments,
+        "bases_in_filtered_reads": result.bases_in_filtered_reads,
         "fraction_retained": bases_in_segments / bases_in if bases_in else 0,
         "bases_out_r1": result.bases_out_r1,
         "bases_out_r2": result.bases_out_r2,
@@ -351,12 +366,13 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_segments, mi
         "segments_dropped_short": result.segments_dropped_short,
         "bases_dropped_short_segments": result.bases_dropped_short,
         "bases_trimmed_overhang": result.bases_trimmed_overhang,
+        "bases_in_filtered_reads": result.bases_in_filtered_reads,
     }
 
     # Distributions behind the averages (passing reads only)
     for key, stats in (("segments_per_read", result.segments_per_read_stats),
                        ("pairs_per_read", result.pairs_per_read_stats)):
-        summary = _summarize(stats, fast_mode, 50)
+        summary = _summarize(stats, fast_mode, 50, integer_valued=True)
         if summary:
             stats_data[key] = summary
 

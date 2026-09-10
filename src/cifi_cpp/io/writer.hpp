@@ -34,6 +34,8 @@ public:
 
 private:
     std::ofstream out_;
+    std::string path_;
+    std::string buf_;  // reused record buffer
 };
 
 /**

@@ -27,8 +27,7 @@ struct ProcessingConfig {
  */
 struct SegmentExtraction {
     std::vector<std::pair<size_t, size_t>> segments;
-    uint64_t candidates = 0;      // spans between consecutive cuts
-    uint64_t dropped_short = 0;   // spans below min_emit_len after trimming
+    uint64_t dropped_short = 0;   // non-empty spans below min_emit_len after trimming
     uint64_t bases_dropped = 0;   // bases in those spans, post-trim
     uint64_t bases_trimmed = 0;   // bases removed by the 5' site-remnant trim
 };
@@ -51,6 +50,9 @@ struct ProcessingResult {
     uint64_t segments_dropped_short = 0;
     uint64_t bases_dropped_short = 0;
     uint64_t bases_trimmed_overhang = 0;
+    // Bases in reads that no segment survived from, so that
+    // kept + trimmed + dropped + this == total_bases_in
+    uint64_t bases_in_filtered_reads = 0;
 
     // Filtering reason counters
     uint64_t filtered_few_sites = 0;    // Reads with < min_segments sites

@@ -307,11 +307,13 @@ static void process_bam_reads(
     bam1_t *b = bam_init1();
 
     while (sam_read1(fp, hdr, b) >= 0) {
-        result.reads_in++;
-
+        // Secondary and supplementary records are further alignments of a read
+        // that was already counted, so they must not inflate reads_in - the new
+        // input statistics are only recorded for the records we process.
         if (b->core.flag & (BAM_FSECONDARY | BAM_FSUPPLEMENTARY)) {
             continue;
         }
+        result.reads_in++;
 
         std::string name(bam_get_qname(b));
 
@@ -429,6 +431,15 @@ cifi::ProcessingResult process_reads_custom(
     bool fast_mode = false,
     bool revcomp_r2 = false
 ) {
+    if (site.empty()) {
+        throw std::runtime_error("Custom site must not be empty");
+    }
+    if (cut_offset < 0 || cut_offset > static_cast<int>(site.length())) {
+        throw std::runtime_error(
+            "cut_offset must be between 0 and " + std::to_string(site.length()) +
+            " for site " + site);
+    }
+
     cifi::EnzymeInfo enzyme{"Custom", site, cut_offset};
 
     cifi::ProcessingConfig config;
@@ -471,7 +482,9 @@ NB_MODULE(_core, m) {
         .def("max", &cifi::Statistics::max)
         .def("percentile", &cifi::Statistics::percentile)
         .def("is_fast_mode", &cifi::Statistics::is_fast_mode)
-        .def("values", &cifi::Statistics::values);
+        .def("values", &cifi::Statistics::values)
+        .def("binned", &cifi::Statistics::binned, nb::arg("num_bins"),
+             "Equal-width histogram as (bin_edges, counts); avoids copying every value.");
 
     // ProcessingResult
     nb::class_<cifi::ProcessingResult>(m, "ProcessingResult")
@@ -495,6 +508,7 @@ NB_MODULE(_core, m) {
         .def_ro("segments_dropped_short", &cifi::ProcessingResult::segments_dropped_short)
         .def_ro("bases_dropped_short", &cifi::ProcessingResult::bases_dropped_short)
         .def_ro("bases_trimmed_overhang", &cifi::ProcessingResult::bases_trimmed_overhang)
+        .def_ro("bases_in_filtered_reads", &cifi::ProcessingResult::bases_in_filtered_reads)
         .def_ro("segments_per_read_stats", &cifi::ProcessingResult::segments_per_read_stats)
         .def_ro("pairs_per_read_stats", &cifi::ProcessingResult::pairs_per_read_stats);
 

@@ -26,20 +26,24 @@ SegmentExtraction extract_segments(
     for (size_t i = 0; i < cuts.size() - 1; i++) {
         size_t start = cuts[i];
         size_t end = cuts[i + 1];
-        out.candidates++;
 
-        if (start > 0) {
+        // Span 0 runs from the read start and carries no remnant; every later
+        // span begins at a cut, including one that falls at offset 0.
+        if (i > 0) {
             // clamp so a span shorter than the remnant cannot underflow
             size_t trimmed = std::min(start + static_cast<size_t>(lead_trim), end);
             out.bases_trimmed += trimmed - start;
             start = trimmed;
         }
 
-        if (end > start && static_cast<int>(end - start) >= min_emit_len) {
+        if (end <= start) {
+            continue;  // empty span (adjacent cuts, or a site at either end)
+        }
+        if (static_cast<int>(end - start) >= min_emit_len) {
             out.segments.push_back({start, end});
         } else {
             out.dropped_short++;
-            out.bases_dropped += end > start ? end - start : 0;
+            out.bases_dropped += end - start;
         }
     }
 
@@ -71,6 +75,7 @@ bool process_single_read(
     if (static_cast<int>(sites.size()) < config.min_segments - 1) {
         result.reads_skipped++;
         result.filtered_few_sites++;
+        result.bases_in_filtered_reads += sequence.length();
         return false;
     }
 
@@ -83,10 +88,19 @@ bool process_single_read(
                                        config.min_segment_len, lead_trim);
     const auto& segments = extraction.segments;
 
+    // Record what extraction discarded before deciding the read's fate, so the
+    // totals still add up for reads that are filtered out below.
+    result.segments_dropped_short += extraction.dropped_short;
+    result.bases_dropped_short += extraction.bases_dropped;
+    result.bases_trimmed_overhang += extraction.bases_trimmed;
+
     // Check segment count after length filtering
     if (static_cast<int>(segments.size()) < config.min_segments) {
         result.reads_skipped++;
         result.filtered_short_segments++;
+        for (const auto& [s0, e0] : segments) {
+            result.bases_in_filtered_reads += e0 - s0;
+        }
         return false;
     }
 
@@ -101,10 +115,6 @@ bool process_single_read(
     result.segments_per_read_stats.add(static_cast<int>(segments.size()));
     result.pairs_per_read_stats.add(
         static_cast<int>(segments.size() * (segments.size() - 1) / 2));
-    result.segments_dropped_short += extraction.dropped_short;
-    result.bases_dropped_short += extraction.bases_dropped;
-    result.bases_trimmed_overhang += extraction.bases_trimmed;
-
     // Generate ALL pairs (n choose 2)
     for (size_t i = 0; i < segments.size(); i++) {
         for (size_t j = i + 1; j < segments.size(); j++) {

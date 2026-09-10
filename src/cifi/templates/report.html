@@ -212,7 +212,6 @@ Plotly.newPlot("{{ plot_id }}", [{
 {{ render_table(['Metric', 'Value'], segment_stats_table) }}
 {% endif %}
 
-{% if segment_length_histogram %}
 {% if input_table %}
 <h2>Input Reads</h2>
 {{ render_table(['Metric', 'Value'], input_table) }}
@@ -238,6 +237,7 @@ Plotly.newPlot("{{ plot_id }}", [{
 {{ render_plot('pairs-per-read-plot', pairs_per_read_histogram, 'Pairs', 'Reads', '#d7301f') }}
 {% endif %}
 
+{% if segment_length_histogram %}
 <h2>Segment Length Distribution</h2>
 {{ render_plot('segment-length-plot', segment_length_histogram, 'Length (bp)', 'Count', '#27ae60') }}
 {% endif %}

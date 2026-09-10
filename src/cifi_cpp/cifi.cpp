@@ -66,24 +66,24 @@ struct SingleEnzymeQCResult {
     // Yield estimates
     uint64_t reads_passing = 0;
     double pass_rate = 0;
-    uint64_t est_total_fragments = 0;
+    uint64_t est_total_segments = 0;
     uint64_t est_total_pairs = 0;
-    double avg_fragments_per_read = 0;
+    double avg_segments_per_read = 0;
     double avg_pairs_per_read = 0;
 
-    // Fragment size statistics
-    double frag_size_mean = 0;
-    double frag_size_median = 0;
-    int frag_size_min = 0;
-    int frag_size_max = 0;
+    // Segment size statistics
+    double segment_size_mean = 0;
+    double segment_size_median = 0;
+    int segment_size_min = 0;
+    int segment_size_max = 0;
 
     // Histograms (bin edges and counts)
     std::vector<double> read_length_hist_bins;
     std::vector<uint64_t> read_length_hist_counts;
     std::vector<double> sites_hist_bins;
     std::vector<uint64_t> sites_hist_counts;
-    std::vector<double> frag_size_hist_bins;
-    std::vector<uint64_t> frag_size_hist_counts;
+    std::vector<double> segment_size_hist_bins;
+    std::vector<uint64_t> segment_size_hist_counts;
 };
 
 static double compute_median(std::vector<int>& values) {
@@ -137,7 +137,7 @@ SingleEnzymeQCResult run_qc_analysis_custom(
 
     std::vector<int> read_lengths;
     std::vector<int> sites_per_read;
-    std::vector<int> fragment_sizes;
+    std::vector<int> segment_sizes;
     uint64_t gc_count = 0;
     uint64_t total_bases = 0;
     uint64_t min_len = UINT64_MAX;
@@ -163,20 +163,20 @@ SingleEnzymeQCResult run_qc_analysis_custom(
 
         if (!positions.empty()) {
             if (positions[0] > 0) {
-                int frag_len = static_cast<int>(positions[0]) + cut_offset;
-                if (frag_len > 0) fragment_sizes.push_back(frag_len);
+                int segment_len = static_cast<int>(positions[0]) + cut_offset;
+                if (segment_len > 0) segment_sizes.push_back(segment_len);
             }
             for (size_t i = 0; i + 1 < positions.size(); ++i) {
-                int frag_len = static_cast<int>(positions[i + 1] - positions[i]);
-                if (frag_len > 0) fragment_sizes.push_back(frag_len);
+                int segment_len = static_cast<int>(positions[i + 1] - positions[i]);
+                if (segment_len > 0) segment_sizes.push_back(segment_len);
             }
             size_t last_end = positions.back() + cut_offset;
             if (last_end < seq_len) {
-                int frag_len = static_cast<int>(seq_len - last_end);
-                if (frag_len > 0) fragment_sizes.push_back(frag_len);
+                int segment_len = static_cast<int>(seq_len - last_end);
+                if (segment_len > 0) segment_sizes.push_back(segment_len);
             }
         } else {
-            fragment_sizes.push_back(static_cast<int>(seq_len));
+            segment_sizes.push_back(static_cast<int>(seq_len));
         }
     };
 
@@ -249,31 +249,31 @@ SingleEnzymeQCResult run_qc_analysis_custom(
     for (int s : sites_per_read) {
         if (s >= min_sites) {
             result.reads_passing++;
-            int n_frags = s + 1;
-            result.est_total_fragments += n_frags;
-            result.est_total_pairs += (n_frags * (n_frags - 1)) / 2;
+            int n_segments = s + 1;
+            result.est_total_segments += n_segments;
+            result.est_total_pairs += (n_segments * (n_segments - 1)) / 2;
         }
     }
     result.pass_rate = 100.0 * result.reads_passing / result.reads_analyzed;
-    result.avg_fragments_per_read = result.reads_passing > 0 ?
-        static_cast<double>(result.est_total_fragments) / result.reads_passing : 0;
+    result.avg_segments_per_read = result.reads_passing > 0 ?
+        static_cast<double>(result.est_total_segments) / result.reads_passing : 0;
     result.avg_pairs_per_read = result.reads_passing > 0 ?
         static_cast<double>(result.est_total_pairs) / result.reads_passing : 0;
 
-    if (!fragment_sizes.empty()) {
-        std::vector<int> sorted_frags = fragment_sizes;
-        std::sort(sorted_frags.begin(), sorted_frags.end());
-        size_t nf = sorted_frags.size();
+    if (!segment_sizes.empty()) {
+        std::vector<int> sorted_segments = segment_sizes;
+        std::sort(sorted_segments.begin(), sorted_segments.end());
+        size_t nf = sorted_segments.size();
 
-        double frag_sum = 0;
-        for (int fs : fragment_sizes) frag_sum += fs;
+        double segment_sum = 0;
+        for (int fs : segment_sizes) segment_sum += fs;
 
-        result.frag_size_mean = frag_sum / nf;
-        result.frag_size_median = sorted_frags[nf / 2];
-        result.frag_size_min = sorted_frags.front();
-        result.frag_size_max = sorted_frags.back();
+        result.segment_size_mean = segment_sum / nf;
+        result.segment_size_median = sorted_segments[nf / 2];
+        result.segment_size_min = sorted_segments.front();
+        result.segment_size_max = sorted_segments.back();
 
-        make_histogram(fragment_sizes, 50, result.frag_size_hist_bins, result.frag_size_hist_counts);
+        make_histogram(segment_sizes, 50, result.segment_size_hist_bins, result.segment_size_hist_counts);
     }
 
     make_histogram(read_lengths, 50, result.read_length_hist_bins, result.read_length_hist_counts);
@@ -380,8 +380,8 @@ cifi::ProcessingResult process_reads(
     const std::string& output_r1,
     const std::string& output_r2,
     const std::string& enzyme_name,
-    int min_fragments = 3,
-    int min_frag_len = 60,
+    int min_segments = 3,
+    int min_segment_len = 60,
     bool strip_overhang = true,
     bool gzip_output = false,
     bool fast_mode = false,
@@ -394,8 +394,8 @@ cifi::ProcessingResult process_reads(
 
     cifi::ProcessingConfig config;
     config.enzyme = *enzyme_opt;
-    config.min_fragments = min_fragments;
-    config.min_frag_len = min_frag_len;
+    config.min_segments = min_segments;
+    config.min_segment_len = min_segment_len;
     config.strip_overhang = strip_overhang;
     config.revcomp_r2 = revcomp_r2;
     config.fast_mode = fast_mode;
@@ -422,8 +422,8 @@ cifi::ProcessingResult process_reads_custom(
     const std::string& output_r2,
     const std::string& site,
     int cut_offset,
-    int min_fragments = 3,
-    int min_frag_len = 60,
+    int min_segments = 3,
+    int min_segment_len = 60,
     bool strip_overhang = true,
     bool gzip_output = false,
     bool fast_mode = false,
@@ -433,8 +433,8 @@ cifi::ProcessingResult process_reads_custom(
 
     cifi::ProcessingConfig config;
     config.enzyme = enzyme;
-    config.min_fragments = min_fragments;
-    config.min_frag_len = min_frag_len;
+    config.min_segments = min_segments;
+    config.min_segment_len = min_segment_len;
     config.strip_overhang = strip_overhang;
     config.revcomp_r2 = revcomp_r2;
     config.fast_mode = fast_mode;
@@ -478,11 +478,11 @@ NB_MODULE(_core, m) {
         .def_ro("reads_in", &cifi::ProcessingResult::reads_in)
         .def_ro("reads_out", &cifi::ProcessingResult::reads_out)
         .def_ro("pairs_written", &cifi::ProcessingResult::pairs_written)
-        .def_ro("total_frags", &cifi::ProcessingResult::total_frags)
+        .def_ro("total_segments", &cifi::ProcessingResult::total_segments)
         .def_ro("reads_skipped", &cifi::ProcessingResult::reads_skipped)
         .def_ro("filtered_few_sites", &cifi::ProcessingResult::filtered_few_sites)
-        .def_ro("filtered_short_frags", &cifi::ProcessingResult::filtered_short_frags)
-        .def_ro("frag_length_stats", &cifi::ProcessingResult::frag_length_stats)
+        .def_ro("filtered_short_segments", &cifi::ProcessingResult::filtered_short_segments)
+        .def_ro("segment_length_stats", &cifi::ProcessingResult::segment_length_stats)
         .def_ro("sites_per_read_stats", &cifi::ProcessingResult::sites_per_read_stats);
 
     // SingleEnzymeQCResult
@@ -501,20 +501,20 @@ NB_MODULE(_core, m) {
         .def_ro("sites_per_read_max", &SingleEnzymeQCResult::sites_per_read_max)
         .def_ro("reads_passing", &SingleEnzymeQCResult::reads_passing)
         .def_ro("pass_rate", &SingleEnzymeQCResult::pass_rate)
-        .def_ro("est_total_fragments", &SingleEnzymeQCResult::est_total_fragments)
+        .def_ro("est_total_segments", &SingleEnzymeQCResult::est_total_segments)
         .def_ro("est_total_pairs", &SingleEnzymeQCResult::est_total_pairs)
-        .def_ro("avg_fragments_per_read", &SingleEnzymeQCResult::avg_fragments_per_read)
+        .def_ro("avg_segments_per_read", &SingleEnzymeQCResult::avg_segments_per_read)
         .def_ro("avg_pairs_per_read", &SingleEnzymeQCResult::avg_pairs_per_read)
-        .def_ro("frag_size_mean", &SingleEnzymeQCResult::frag_size_mean)
-        .def_ro("frag_size_median", &SingleEnzymeQCResult::frag_size_median)
-        .def_ro("frag_size_min", &SingleEnzymeQCResult::frag_size_min)
-        .def_ro("frag_size_max", &SingleEnzymeQCResult::frag_size_max)
+        .def_ro("segment_size_mean", &SingleEnzymeQCResult::segment_size_mean)
+        .def_ro("segment_size_median", &SingleEnzymeQCResult::segment_size_median)
+        .def_ro("segment_size_min", &SingleEnzymeQCResult::segment_size_min)
+        .def_ro("segment_size_max", &SingleEnzymeQCResult::segment_size_max)
         .def_ro("read_length_hist_bins", &SingleEnzymeQCResult::read_length_hist_bins)
         .def_ro("read_length_hist_counts", &SingleEnzymeQCResult::read_length_hist_counts)
         .def_ro("sites_hist_bins", &SingleEnzymeQCResult::sites_hist_bins)
         .def_ro("sites_hist_counts", &SingleEnzymeQCResult::sites_hist_counts)
-        .def_ro("frag_size_hist_bins", &SingleEnzymeQCResult::frag_size_hist_bins)
-        .def_ro("frag_size_hist_counts", &SingleEnzymeQCResult::frag_size_hist_counts);
+        .def_ro("segment_size_hist_bins", &SingleEnzymeQCResult::segment_size_hist_bins)
+        .def_ro("segment_size_hist_counts", &SingleEnzymeQCResult::segment_size_hist_counts);
 
     // QC function
     m.def("run_qc_analysis_custom", &run_qc_analysis_custom,
@@ -534,14 +534,14 @@ NB_MODULE(_core, m) {
           nb::arg("output_r1"),
           nb::arg("output_r2"),
           nb::arg("enzyme"),
-          nb::arg("min_fragments") = 3,
-          nb::arg("min_frag_len") = 60,
+          nb::arg("min_segments") = 3,
+          nb::arg("min_segment_len") = 60,
           nb::arg("strip_overhang") = true,
           nb::arg("gzip_output") = false,
           nb::arg("fast_mode") = false,
           nb::arg("revcomp_r2") = false,
           "Process FASTQ or BAM file, generating ALL pairwise contacts (n choose 2).\n"
-          "Mates share a read name; min_frag_len bounds the emitted read length.\n"
+          "Mates share a read name; min_segment_len bounds the emitted read length.\n"
           "R2 keeps native orientation unless revcomp_r2 is set.");
 
     m.def("process_reads_custom", &process_reads_custom,
@@ -550,14 +550,14 @@ NB_MODULE(_core, m) {
           nb::arg("output_r2"),
           nb::arg("site"),
           nb::arg("cut_offset"),
-          nb::arg("min_fragments") = 3,
-          nb::arg("min_frag_len") = 60,
+          nb::arg("min_segments") = 3,
+          nb::arg("min_segment_len") = 60,
           nb::arg("strip_overhang") = true,
           nb::arg("gzip_output") = false,
           nb::arg("fast_mode") = false,
           nb::arg("revcomp_r2") = false,
           "Process FASTQ or BAM file with custom enzyme site.\n"
-          "Mates share a read name; min_frag_len bounds the emitted read length.\n"
+          "Mates share a read name; min_segment_len bounds the emitted read length.\n"
           "R2 keeps native orientation unless revcomp_r2 is set.");
 
     // Enzyme utilities

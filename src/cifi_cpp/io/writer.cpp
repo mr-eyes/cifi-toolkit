@@ -46,7 +46,7 @@ void GzipFastqWriter::write(const std::string& name,
                              const std::string& seq,
                              const std::string& qual) {
     // gzprintf() formats into a fixed internal buffer (8KB by default) and
-    // silently writes nothing when the record does not fit. CiFi fragments run
+    // silently writes nothing when the record does not fit. CiFi segments run
     // to tens of kb, so build the record ourselves and hand it to gzwrite,
     // which has no length limit.
     buf_.clear();

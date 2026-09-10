@@ -62,21 +62,21 @@ def _validate_site(ctx, param, value):
 )
 @click.option("-o", "--output-prefix", required=True, help="Output prefix for R1/R2 files")
 @click.option(
-    "-m", "--min-fragments", default=3, show_default=True,
-    help="Minimum fragments required per read"
+    "-m", "--min-segments", default=3, show_default=True,
+    help="Minimum segments required per read"
 )
 @click.option(
-    "-l", "--min-frag-len", default=60, show_default=True,
+    "-l", "--min-segment-len", default=60, show_default=True,
     help="Minimum length of an emitted read (bp). Guaranteed for both R1 and R2."
 )
 @click.option(
     "--strip-overhang/--no-strip-overhang", default=True, show_default=True,
-    help="Drop the 5' site remnant from fragments that begin at a cut"
+    help="Drop the 5' site remnant from segments that begin at a cut"
 )
 @click.option(
     "--revcomp-r2/--no-revcomp-r2", default=False, show_default=True,
     help="Reverse complement R2 (applied after stripping). Off by default: "
-         "fragments keep the orientation they were sequenced in."
+         "segments keep the orientation they were sequenced in."
 )
 @click.option(
     "--report/--no-report", default=True, show_default=True,
@@ -94,7 +94,7 @@ def _validate_site(ctx, param, value):
     "--fast", "fast_mode", is_flag=True, default=False,
     help="Use streaming statistics (lower memory, approximate percentiles)"
 )
-def digest(input_file, enzyme, site, cut_offset, output_prefix, min_fragments, min_frag_len,
+def digest(input_file, enzyme, site, cut_offset, output_prefix, min_segments, min_segment_len,
            strip_overhang, revcomp_r2, report, write_json, gzip_output, fast_mode):
     """In-silico restriction digestion, generating paired-end FASTQ.
 
@@ -148,8 +148,8 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_fragments, m
     click.echo(f"Format:      {fmt}")
     click.echo(f"Enzyme:      {enzyme_name} ({site})")
     click.echo(f"Cut position: {cut_offset} (0-indexed)")
-    click.echo(f"Min frags:   {min_fragments}")
-    click.echo(f"Min read len: {min_frag_len} bp (emitted R1/R2)")
+    click.echo(f"Min segments:   {min_segments}")
+    click.echo(f"Min read len: {min_segment_len} bp (emitted R1/R2)")
     click.echo(f"Overhang:    {'stripped' if strip_overhang else 'kept'}")
     click.echo(f"R2 strand:   {'reverse complement' if revcomp_r2 else 'native'}")
     click.echo(f"Compression: {'gzip' if use_gzip else 'none'}")
@@ -160,12 +160,12 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_fragments, m
     try:
         if use_custom:
             result = process_reads_custom(
-                input_file, out_r1, out_r2, site, cut_offset, min_fragments, min_frag_len,
+                input_file, out_r1, out_r2, site, cut_offset, min_segments, min_segment_len,
                 strip_overhang, use_gzip, fast_mode, revcomp_r2
             )
         else:
             result = process_reads(
-                input_file, out_r1, out_r2, enzyme, min_fragments, min_frag_len, strip_overhang,
+                input_file, out_r1, out_r2, enzyme, min_segments, min_segment_len, strip_overhang,
                 use_gzip, fast_mode, revcomp_r2
             )
     except Exception as e:
@@ -185,24 +185,24 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_fragments, m
         pass_rate = 100 * result.reads_out / result.reads_in
         click.echo(f"  Pass rate:         {pass_rate:>11.1f}%")
 
-    click.echo(f"\n  Total fragments:   {result.total_frags:>12,}")
+    click.echo(f"\n  Total segments:   {result.total_segments:>12,}")
     click.echo(f"  Total pairs:       {result.pairs_written:>12,}")
 
     if result.reads_out > 0:
-        avg_frags = result.total_frags / result.reads_out
+        avg_segments = result.total_segments / result.reads_out
         avg_pairs = result.pairs_written / result.reads_out
-        click.echo(f"  Avg frags/read:    {avg_frags:>12.1f}")
+        click.echo(f"  Avg segments/read:    {avg_segments:>12.1f}")
         click.echo(f"  Avg pairs/read:    {avg_pairs:>12.1f}")
 
-    # Fragment length statistics (using Statistics object)
-    if result.frag_length_stats.count() > 0:
-        frag_stats = result.frag_length_stats
-        click.echo("\nFRAGMENT LENGTHS:")
-        click.echo(f"  Range:   {frag_stats.min():,} - {frag_stats.max():,} bp")
-        click.echo(f"  Mean:    {frag_stats.mean():,.0f} bp")
-        click.echo(f"  Median:  {frag_stats.median():,.0f} bp")
+    # Segment length statistics (using Statistics object)
+    if result.segment_length_stats.count() > 0:
+        segment_stats = result.segment_length_stats
+        click.echo("\nSEGMENT LENGTHS:")
+        click.echo(f"  Range:   {segment_stats.min():,} - {segment_stats.max():,} bp")
+        click.echo(f"  Mean:    {segment_stats.mean():,.0f} bp")
+        click.echo(f"  Median:  {segment_stats.median():,.0f} bp")
         if not fast_mode:
-            click.echo(f"  IQR:     {frag_stats.percentile(0.25):,.0f} - {frag_stats.percentile(0.75):,.0f} bp")
+            click.echo(f"  IQR:     {segment_stats.percentile(0.25):,.0f} - {segment_stats.percentile(0.75):,.0f} bp")
 
     # Sites per read statistics (using Statistics object)
     if result.sites_per_read_stats.count() > 0:
@@ -231,8 +231,8 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_fragments, m
             "enzyme_site": site,
             "cut_offset": cut_offset,
             "custom_enzyme": use_custom,
-            "min_fragments": min_fragments,
-            "min_frag_len": min_frag_len,
+            "min_segments": min_segments,
+            "min_segment_len": min_segment_len,
             "strip_overhang": strip_overhang,
             "revcomp_r2": revcomp_r2,
             "gzip_output": use_gzip,
@@ -243,11 +243,11 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_fragments, m
             "reads_out": result.reads_out,
             "reads_skipped": result.reads_skipped,
             "filtered_few_sites": result.filtered_few_sites,
-            "filtered_short_frags": result.filtered_short_frags,
+            "filtered_short_segments": result.filtered_short_segments,
             "pairs_written": result.pairs_written,
-            "total_fragments": result.total_frags,
+            "total_segments": result.total_segments,
             "pass_rate": result.reads_out / result.reads_in if result.reads_in > 0 else 0,
-            "avg_fragments_per_read": result.total_frags / result.reads_out if result.reads_out > 0 else 0,
+            "avg_segments_per_read": result.total_segments / result.reads_out if result.reads_out > 0 else 0,
             "avg_pairs_per_read": result.pairs_written / result.reads_out if result.reads_out > 0 else 0,
         },
         "output": {
@@ -256,22 +256,22 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_fragments, m
         },
     }
 
-    # Fragment length statistics from Statistics object
-    if result.frag_length_stats.count() > 0:
-        stats_data["fragment_lengths"] = {
-            "count": result.frag_length_stats.count(),
-            "min": result.frag_length_stats.min(),
-            "max": result.frag_length_stats.max(),
-            "mean": result.frag_length_stats.mean(),
-            "median": result.frag_length_stats.median(),
+    # Segment length statistics from Statistics object
+    if result.segment_length_stats.count() > 0:
+        stats_data["segment_lengths"] = {
+            "count": result.segment_length_stats.count(),
+            "min": result.segment_length_stats.min(),
+            "max": result.segment_length_stats.max(),
+            "mean": result.segment_length_stats.mean(),
+            "median": result.segment_length_stats.median(),
         }
         if not fast_mode:
-            stats_data["fragment_lengths"]["q25"] = result.frag_length_stats.percentile(0.25)
-            stats_data["fragment_lengths"]["q75"] = result.frag_length_stats.percentile(0.75)
+            stats_data["segment_lengths"]["q25"] = result.segment_length_stats.percentile(0.25)
+            stats_data["segment_lengths"]["q75"] = result.segment_length_stats.percentile(0.75)
             # Histogram from raw values (only available in exact mode)
-            frag_values = list(result.frag_length_stats.values())
-            if frag_values:
-                stats_data["fragment_length_histogram"] = _make_histogram(frag_values, 50)
+            segment_values = list(result.segment_length_stats.values())
+            if segment_values:
+                stats_data["segment_length_histogram"] = _make_histogram(segment_values, 50)
 
     # Sites per read statistics from Statistics object
     if result.sites_per_read_stats.count() > 0:
@@ -353,7 +353,7 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_fragments, m
     help="Suppress terminal output"
 )
 def qc(input_file, enzyme, site, cut_offset, output, num_reads, min_sites, html, write_json, pdf, quiet):
-    """Sample reads and report enzyme site frequency, fragment sizes, and estimated yield.
+    """Sample reads and report enzyme site frequency, segment sizes, and estimated yield.
 
     \b
     Examples:
@@ -435,15 +435,15 @@ def qc(input_file, enzyme, site, cut_offset, output, num_reads, min_sites, html,
 
         click.echo("\nESTIMATED YIELD:")
         click.echo(f"  Reads with ≥{min_sites} sites: {qc_result['reads_passing']:>10,} ({qc_result['pass_rate']:.1f}%)")
-        click.echo(f"  Est. fragments:    {qc_result['est_total_fragments']:>12,}")
+        click.echo(f"  Est. segments:    {qc_result['est_total_segments']:>12,}")
         click.echo(f"  Est. pairs:        {qc_result['est_total_pairs']:>12,}")
-        click.echo(f"  Avg frags/read:    {qc_result['avg_fragments_per_read']:>12.1f}")
+        click.echo(f"  Avg segments/read:    {qc_result['avg_segments_per_read']:>12.1f}")
         click.echo(f"  Avg pairs/read:    {qc_result['avg_pairs_per_read']:>12.1f}")
 
-        if qc_result.get('frag_size_mean'):
-            click.echo("\nFRAGMENT SIZE ESTIMATES:")
-            click.echo(f"  Mean:              {qc_result['frag_size_mean']:>12,.0f} bp")
-            click.echo(f"  Median:            {qc_result['frag_size_median']:>12,.0f} bp")
+        if qc_result.get('segment_size_mean'):
+            click.echo("\nSEGMENT SIZE ESTIMATES:")
+            click.echo(f"  Mean:              {qc_result['segment_size_mean']:>12,.0f} bp")
+            click.echo(f"  Median:            {qc_result['segment_size_median']:>12,.0f} bp")
 
         click.echo("─" * 60)
 
@@ -575,15 +575,15 @@ def _run_qc_for_enzyme(input_file: str, site: str, cut_offset: int, num_reads: i
 
         "reads_passing": result.reads_passing,
         "pass_rate": result.pass_rate,
-        "est_total_fragments": result.est_total_fragments,
+        "est_total_segments": result.est_total_segments,
         "est_total_pairs": result.est_total_pairs,
-        "avg_fragments_per_read": result.avg_fragments_per_read,
+        "avg_segments_per_read": result.avg_segments_per_read,
         "avg_pairs_per_read": result.avg_pairs_per_read,
 
-        "frag_size_mean": result.frag_size_mean,
-        "frag_size_median": result.frag_size_median,
-        "frag_size_min": result.frag_size_min,
-        "frag_size_max": result.frag_size_max,
+        "segment_size_mean": result.segment_size_mean,
+        "segment_size_median": result.segment_size_median,
+        "segment_size_min": result.segment_size_min,
+        "segment_size_max": result.segment_size_max,
 
         # Histograms from C++ result
         "read_length_histogram": {
@@ -596,10 +596,10 @@ def _run_qc_for_enzyme(input_file: str, site: str, cut_offset: int, num_reads: i
             "counts": list(result.sites_hist_counts)
         } if result.sites_hist_bins else {"bins": [], "counts": []},
 
-        "fragment_size_histogram": {
-            "bins": list(result.frag_size_hist_bins),
-            "counts": list(result.frag_size_hist_counts)
-        } if result.frag_size_hist_bins else None,
+        "segment_size_histogram": {
+            "bins": list(result.segment_size_hist_bins),
+            "counts": list(result.segment_size_hist_counts)
+        } if result.segment_size_hist_bins else None,
     }
 
 
@@ -647,7 +647,7 @@ def enzymes():
         else:
             cutters["8"].append(entry)
 
-    click.echo("\n4-CUTTERS (frequent cuts, many small fragments):")
+    click.echo("\n4-CUTTERS (frequent cuts, many small segments):")
     click.echo(f"  {'Name':<10} {'Cut Site':<12} {'Notes'}")
     click.echo("  " + "─" * 40)
     for name, display, site, _ in sorted(cutters["4"]):
@@ -666,7 +666,7 @@ def enzymes():
         click.echo(f"  {name:<10} {display:<12} {notes}")
 
     if cutters["8"]:
-        click.echo("\n8-CUTTERS (rare cuts, few fragments):")
+        click.echo("\n8-CUTTERS (rare cuts, few segments):")
         click.echo(f"  {'Name':<10} {'Cut Site':<12}")
         click.echo("  " + "─" * 40)
         for name, display, _, _ in sorted(cutters["8"]):

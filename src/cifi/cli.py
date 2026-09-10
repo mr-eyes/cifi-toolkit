@@ -46,6 +46,27 @@ def _validate_site(ctx, param, value):
     return value.upper()
 
 
+def _summarize(stats, fast_mode, histogram_bins=None):
+    """Summary dict for a Statistics object, with an optional histogram."""
+    if stats.count() == 0:
+        return None
+    out = {
+        "count": stats.count(),
+        "min": stats.min(),
+        "max": stats.max(),
+        "mean": stats.mean(),
+        "median": stats.median(),
+    }
+    if not fast_mode:
+        out["q25"] = stats.percentile(0.25)
+        out["q75"] = stats.percentile(0.75)
+        if histogram_bins:
+            values = list(stats.values())
+            if values:
+                out["histogram"] = _make_histogram(values, histogram_bins)
+    return out
+
+
 @main.command()
 @click.argument("input_file", type=click.Path(exists=True))
 @click.option(
@@ -176,6 +197,17 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_segments, mi
     click.echo("-" * 60)
 
     # Display results
+    if result.total_bases_in > 0:
+        click.echo("\nINPUT READS:")
+        click.echo(f"  Reads:             {result.reads_in:>12,}")
+        click.echo(f"  Total bases:       {result.total_bases_in:>12,}")
+        click.echo(f"  GC content:        {100.0 * result.gc_bases_in / result.total_bases_in:>11.1f}%")
+        click.echo(f"  Enzyme sites:      {result.total_sites:>12,}")
+        rl = result.read_length_stats
+        if rl.count() > 0:
+            click.echo(f"  Read length:       {rl.min():,} - {rl.max():,} bp "
+                       f"(mean {rl.mean():,.0f}, median {rl.median():,.0f})")
+
     click.echo("\nRESULTS:")
     click.echo(f"  Reads processed:   {result.reads_in:>12,}")
     click.echo(f"  Reads passing:     {result.reads_out:>12,}")
@@ -211,6 +243,20 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_segments, mi
         click.echo(f"  Range:   {sites_stats.min()} - {sites_stats.max()}")
         click.echo(f"  Mean:    {sites_stats.mean():.1f}")
         click.echo(f"  Median:  {sites_stats.median():.0f}")
+
+    bases_in_segments = result.segment_length_stats.sum()
+    bases_out = result.bases_out_r1 + result.bases_out_r2
+    if result.total_bases_in > 0:
+        click.echo("\nYIELD:")
+        click.echo(f"  Bases in:          {result.total_bases_in:>12,}")
+        click.echo(f"  Bases in segments: {bases_in_segments:>12,} "
+                   f"({100.0 * bases_in_segments / result.total_bases_in:.1f}% retained)")
+        click.echo(f"  Bases written:     {bases_out:>12,} "
+                   f"({bases_out / bases_in_segments:.1f}x, segments reused across pairs)"
+                   if bases_in_segments else "")
+        click.echo(f"  Trimmed overhang:  {result.bases_trimmed_overhang:>12,}")
+        click.echo(f"  Dropped (< {min_segment_len}bp):  {result.bases_dropped_short:>12,} "
+                   f"in {result.segments_dropped_short:,} segments")
 
     click.echo("-" * 60)
     click.echo("\nOUTPUT FILES:")
@@ -272,6 +318,47 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_segments, mi
             segment_values = list(result.segment_length_stats.values())
             if segment_values:
                 stats_data["segment_length_histogram"] = _make_histogram(segment_values, 50)
+
+    # Input profile: every read, including ones the filters later skipped
+    bases_in = result.total_bases_in
+    stats_data["input_reads"] = {
+        "count": result.reads_in,
+        "total_bases": bases_in,
+        "gc_content": 100.0 * result.gc_bases_in / bases_in if bases_in else 0,
+        "total_sites": result.total_sites,
+        "mean_sites_per_read": result.total_sites / result.reads_in if result.reads_in else 0,
+        "length": _summarize(result.read_length_stats, fast_mode, 50),
+    }
+
+    # Yield. Segments are emitted once per pair they take part in, so the bases
+    # written exceed the unique segment bases; keep the two apart.
+    bases_in_segments = result.segment_length_stats.sum()
+    bases_out = result.bases_out_r1 + result.bases_out_r2
+    stats_data["yield"] = {
+        "bases_in": bases_in,
+        "bases_in_segments": bases_in_segments,
+        "fraction_retained": bases_in_segments / bases_in if bases_in else 0,
+        "bases_out_r1": result.bases_out_r1,
+        "bases_out_r2": result.bases_out_r2,
+        "bases_out_total": bases_out,
+        "expansion_factor": bases_out / bases_in_segments if bases_in_segments else 0,
+    }
+
+    # Where the input that did not become segments went
+    stats_data["filtering"] = {
+        "reads_skipped_few_sites": result.filtered_few_sites,
+        "reads_skipped_short_segments": result.filtered_short_segments,
+        "segments_dropped_short": result.segments_dropped_short,
+        "bases_dropped_short_segments": result.bases_dropped_short,
+        "bases_trimmed_overhang": result.bases_trimmed_overhang,
+    }
+
+    # Distributions behind the averages (passing reads only)
+    for key, stats in (("segments_per_read", result.segments_per_read_stats),
+                       ("pairs_per_read", result.pairs_per_read_stats)):
+        summary = _summarize(stats, fast_mode, 50)
+        if summary:
+            stats_data[key] = summary
 
     # Sites per read statistics from Statistics object
     if result.sites_per_read_stats.count() > 0:

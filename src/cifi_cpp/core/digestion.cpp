@@ -1,8 +1,9 @@
 #include "digestion.hpp"
+#include <algorithm>
 
 namespace cifi {
 
-std::vector<std::pair<size_t, size_t>> extract_segments(
+SegmentExtraction extract_segments(
     const std::string& sequence,
     const EnzymeInfo& enzyme,
     int min_emit_len,
@@ -21,19 +22,28 @@ std::vector<std::pair<size_t, size_t>> extract_segments(
     // Take each segment's emitted span, then filter on that length. Only a
     // segment that begins at a cut carries the site remnant; the read's
     // leading segment starts at position 0 and so keeps its full length.
-    std::vector<std::pair<size_t, size_t>> segments;
+    SegmentExtraction out;
     for (size_t i = 0; i < cuts.size() - 1; i++) {
         size_t start = cuts[i];
         size_t end = cuts[i + 1];
+        out.candidates++;
+
         if (start > 0) {
-            start += static_cast<size_t>(lead_trim);
+            // clamp so a span shorter than the remnant cannot underflow
+            size_t trimmed = std::min(start + static_cast<size_t>(lead_trim), end);
+            out.bases_trimmed += trimmed - start;
+            start = trimmed;
         }
+
         if (end > start && static_cast<int>(end - start) >= min_emit_len) {
-            segments.push_back({start, end});
+            out.segments.push_back({start, end});
+        } else {
+            out.dropped_short++;
+            out.bases_dropped += end > start ? end - start : 0;
         }
     }
 
-    return segments;
+    return out;
 }
 
 bool process_single_read(
@@ -45,8 +55,17 @@ bool process_single_read(
     FastqWriter& out_r2,
     ProcessingResult& result
 ) {
+    // Input profile: recorded for every read, including ones skipped below,
+    // so the report describes what was fed in rather than what survived.
+    result.read_length_stats.add(static_cast<int>(sequence.length()));
+    result.total_bases_in += sequence.length();
+    for (char c : sequence) {
+        if (c == 'G' || c == 'C' || c == 'g' || c == 'c') result.gc_bases_in++;
+    }
+
     // Find sites (supports degenerate IUPAC bases)
     auto sites = find_all_degenerate(sequence, config.enzyme.site);
+    result.total_sites += sites.size();
 
     // Early exit: not enough sites
     if (static_cast<int>(sites.size()) < config.min_segments - 1) {
@@ -60,8 +79,9 @@ bool process_single_read(
     // spans. min_segment_len then bounds the emitted read directly.
     int lead_trim = config.strip_overhang ? config.enzyme.overhang_length() : 0;
 
-    auto segments = extract_segments(sequence, config.enzyme,
+    auto extraction = extract_segments(sequence, config.enzyme,
                                        config.min_segment_len, lead_trim);
+    const auto& segments = extraction.segments;
 
     // Check segment count after length filtering
     if (static_cast<int>(segments.size()) < config.min_segments) {
@@ -78,6 +98,12 @@ bool process_single_read(
 
     result.reads_out++;
     result.total_segments += segments.size();
+    result.segments_per_read_stats.add(static_cast<int>(segments.size()));
+    result.pairs_per_read_stats.add(
+        static_cast<int>(segments.size() * (segments.size() - 1) / 2));
+    result.segments_dropped_short += extraction.dropped_short;
+    result.bases_dropped_short += extraction.bases_dropped;
+    result.bases_trimmed_overhang += extraction.bases_trimmed;
 
     // Generate ALL pairs (n choose 2)
     for (size_t i = 0; i < segments.size(); i++) {
@@ -108,6 +134,8 @@ bool process_single_read(
 
             out_r1.write(pair_name, seq1, qual1);
             out_r2.write(pair_name, r2_seq, r2_qual);
+            result.bases_out_r1 += seq1.length();
+            result.bases_out_r2 += r2_seq.length();
 
             result.pairs_written++;
         }

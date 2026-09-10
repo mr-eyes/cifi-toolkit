@@ -151,6 +151,47 @@ def generate_digest_report(stats_data: Dict[str, Any], output_path: str) -> str:
             ["Range", f'{segment_stats["min"]:,} - {segment_stats["max"]:,} bp'],
         ]
 
+    # Input profile: describes what was fed in, including skipped reads
+    inp = stats_data.get("input_reads") or {}
+    input_table = None
+    if inp.get("total_bases"):
+        length = inp.get("length") or {}
+        input_table = [
+            ["Reads", _format_number(inp["count"])],
+            ["Total Bases", _format_number(inp["total_bases"])],
+            ["GC Content", f'{inp["gc_content"]:.1f}%'],
+            ["Enzyme Sites", _format_number(inp["total_sites"])],
+            ["Mean Sites / Read", f'{inp["mean_sites_per_read"]:.1f}'],
+        ]
+        if length:
+            input_table += [
+                ["Read Length (mean)", f'{length["mean"]:,.0f} bp'],
+                ["Read Length (median)", f'{length["median"]:,.0f} bp'],
+                ["Read Length (range)", f'{length["min"]:,} - {length["max"]:,} bp'],
+            ]
+
+    # Yield: unique segment bases vs bases written, which differ because each
+    # segment is emitted once per pair it takes part in
+    y = stats_data.get("yield") or {}
+    yield_table = None
+    if y.get("bases_in"):
+        yield_table = [
+            ["Bases In", _format_number(y["bases_in"])],
+            ["Bases In Segments", f'{_format_number(y["bases_in_segments"])} '
+                                  f'({100 * y["fraction_retained"]:.1f}% retained)'],
+            ["Bases Written (R1)", _format_number(y["bases_out_r1"])],
+            ["Bases Written (R2)", _format_number(y["bases_out_r2"])],
+            ["Expansion Factor", f'{y["expansion_factor"]:.1f}x'],
+        ]
+    f = stats_data.get("filtering") or {}
+    if f:
+        yield_table = (yield_table or []) + [
+            ["Bases Trimmed (overhang)", _format_number(f["bases_trimmed_overhang"])],
+            ["Bases Dropped (short segments)",
+             f'{_format_number(f["bases_dropped_short_segments"])} '
+             f'in {_format_number(f["segments_dropped_short"])} segments'],
+        ]
+
     # Build template data
     template_data = {
         "report_type": "Digestion",
@@ -181,9 +222,18 @@ def generate_digest_report(stats_data: Dict[str, Any], output_path: str) -> str:
         # Segment stats table (may be None)
         "segment_stats_table": segment_stats_table,
 
+        # Input profile and yield (may be None on older stats files)
+        "input_table": input_table,
+        "yield_table": yield_table,
+
         # Histograms
         "segment_length_histogram": _histogram_to_plot_data(stats_data.get("segment_length_histogram")),
         "sites_per_read_histogram": _histogram_to_plot_data(stats_data.get("sites_per_read_histogram")),
+        "read_length_histogram": _histogram_to_plot_data((inp.get("length") or {}).get("histogram")),
+        "segments_per_read_histogram": _histogram_to_plot_data(
+            (stats_data.get("segments_per_read") or {}).get("histogram")),
+        "pairs_per_read_histogram": _histogram_to_plot_data(
+            (stats_data.get("pairs_per_read") or {}).get("histogram")),
 
         # Output files
         "output_files": [stats_data["output"]["r1"], stats_data["output"]["r2"]],

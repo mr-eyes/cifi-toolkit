@@ -483,7 +483,20 @@ NB_MODULE(_core, m) {
         .def_ro("filtered_few_sites", &cifi::ProcessingResult::filtered_few_sites)
         .def_ro("filtered_short_segments", &cifi::ProcessingResult::filtered_short_segments)
         .def_ro("segment_length_stats", &cifi::ProcessingResult::segment_length_stats)
-        .def_ro("sites_per_read_stats", &cifi::ProcessingResult::sites_per_read_stats);
+        .def_ro("sites_per_read_stats", &cifi::ProcessingResult::sites_per_read_stats)
+        // input profile (every read, including skipped)
+        .def_ro("total_bases_in", &cifi::ProcessingResult::total_bases_in)
+        .def_ro("gc_bases_in", &cifi::ProcessingResult::gc_bases_in)
+        .def_ro("total_sites", &cifi::ProcessingResult::total_sites)
+        .def_ro("read_length_stats", &cifi::ProcessingResult::read_length_stats)
+        // yield and per-read distributions (passing reads)
+        .def_ro("bases_out_r1", &cifi::ProcessingResult::bases_out_r1)
+        .def_ro("bases_out_r2", &cifi::ProcessingResult::bases_out_r2)
+        .def_ro("segments_dropped_short", &cifi::ProcessingResult::segments_dropped_short)
+        .def_ro("bases_dropped_short", &cifi::ProcessingResult::bases_dropped_short)
+        .def_ro("bases_trimmed_overhang", &cifi::ProcessingResult::bases_trimmed_overhang)
+        .def_ro("segments_per_read_stats", &cifi::ProcessingResult::segments_per_read_stats)
+        .def_ro("pairs_per_read_stats", &cifi::ProcessingResult::pairs_per_read_stats);
 
     // SingleEnzymeQCResult
     nb::class_<SingleEnzymeQCResult>(m, "SingleEnzymeQCResult")

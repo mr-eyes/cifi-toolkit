@@ -170,7 +170,8 @@ def generate_digest_report(stats_data: Dict[str, Any], output_path: str) -> str:
             ["Total Bases", _format_number(inp["total_bases"])],
             ["GC Content", f'{inp["gc_content"]:.1f}%'],
             ["Enzyme Sites", _format_number(inp["total_sites"])],
-            ["Mean Sites / Read (all)", f'{inp["mean_sites_per_read_all"]:.1f}'],
+            ["Mean Sites / Read (all)",
+             f'{_param(inp, "mean_sites_per_read_all", "mean_sites_per_read", 0):.1f}'],
         ]
         if length:
             input_table += [
@@ -192,6 +193,9 @@ def generate_digest_report(stats_data: Dict[str, Any], output_path: str) -> str:
             ["Bases Written (R2)", _format_number(y["bases_out_r2"])],
             ["Expansion Factor", f'{y["expansion_factor"]:.1f}x'],
         ]
+        if "bases_in_filtered_reads" in y:
+            yield_table.insert(2, ["In Filtered Reads",
+                                   _format_number(y["bases_in_filtered_reads"])])
     f = stats_data.get("filtering") or {}
     if f:
         yield_table = (yield_table or []) + [

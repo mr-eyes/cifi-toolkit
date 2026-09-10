@@ -69,7 +69,7 @@ def _summarize(stats, fast_mode, histogram_bins=None, integer_valued=False):
         n = histogram_bins
         if integer_valued:
             n = max(1, min(n, stats.max() - stats.min() + 1))
-        edges, counts = stats.binned(n)
+        edges, counts = stats.binned(n, integer_valued)
         if edges:
             out["histogram"] = {"bins": list(edges), "counts": list(counts)}
     return out
@@ -385,13 +385,10 @@ def digest(input_file, enzyme, site, cut_offset, output_prefix, min_segments, mi
             "mean": result.sites_per_read_stats.mean(),
             "median": result.sites_per_read_stats.median(),
         }
-        if not fast_mode:
-            # Histogram from raw values (only available in exact mode)
-            sites_values = list(result.sites_per_read_stats.values())
-            if sites_values:
-                stats_data["sites_per_read_histogram"] = _make_histogram(
-                    sites_values, min(int(result.sites_per_read_stats.max()) + 1, 50)
-                )
+        sites_hist = _summarize(result.sites_per_read_stats, fast_mode, 50,
+                                integer_valued=True)
+        if sites_hist and "histogram" in sites_hist:
+            stats_data["sites_per_read_histogram"] = sites_hist["histogram"]
 
     # Write JSON stats
     if write_json:

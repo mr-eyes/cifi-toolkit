@@ -102,7 +102,8 @@ std::vector<std::pair<int, uint64_t>> Statistics::get_histogram() const {
 }
 
 
-std::pair<std::vector<double>, std::vector<uint64_t>> Statistics::binned(int num_bins) const {
+std::pair<std::vector<double>, std::vector<uint64_t>> Statistics::binned(
+    int num_bins, bool integer_bins) const {
     std::vector<double> edges;
     std::vector<uint64_t> counts;
     if (count_ == 0 || num_bins < 1) return {edges, counts};
@@ -113,7 +114,10 @@ std::pair<std::vector<double>, std::vector<uint64_t>> Statistics::binned(int num
         return {edges, counts};
     }
 
-    const double lo = min_, hi = max_;
+    // Integer data is binned on half-integer edges so each bar is centred on
+    // the value it counts, instead of drifting up to a unit away from it.
+    const double lo = integer_bins ? min_ - 0.5 : min_;
+    const double hi = integer_bins ? max_ + 0.5 : max_;
     const double width = (hi - lo) / num_bins;
     edges.reserve(num_bins + 1);
     for (int i = 0; i <= num_bins; ++i) edges.push_back(lo + i * width);

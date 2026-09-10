@@ -45,7 +45,8 @@ public:
      * every recorded value across the language boundary. Integer-valued data
      * should pass num_bins <= max-min+1 to avoid structurally empty bins.
      */
-    std::pair<std::vector<double>, std::vector<uint64_t>> binned(int num_bins) const;
+    std::pair<std::vector<double>, std::vector<uint64_t>> binned(
+        int num_bins, bool integer_bins = false) const;
 
     // Raw values (exact mode only, empty in fast mode)
     const std::vector<int>& values() const { return values_; }

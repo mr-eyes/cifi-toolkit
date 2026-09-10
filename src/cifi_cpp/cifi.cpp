@@ -13,6 +13,7 @@
 #include <vector>
 #include <algorithm>
 #include <cstring>
+#include <exception>
 
 #include "core/enzyme.hpp"
 #include "core/digestion.hpp"
@@ -376,6 +377,15 @@ static void process_fastq_reads(
     gzclose(fp);
 }
 
+// Close both writers even if the first fails, so a flush error on one is not
+// hidden by never closing the other.
+static void close_both(cifi::FastqWriter& a, cifi::FastqWriter& b) {
+    std::exception_ptr err;
+    try { a.close(); } catch (...) { err = std::current_exception(); }
+    try { b.close(); } catch (...) { if (!err) err = std::current_exception(); }
+    if (err) std::rethrow_exception(err);
+}
+
 // Process reads with a named enzyme
 cifi::ProcessingResult process_reads(
     const std::string& input_path,
@@ -412,8 +422,7 @@ cifi::ProcessingResult process_reads(
         process_fastq_reads(input_path, config, *writer_r1, *writer_r2, result);
     }
 
-    writer_r1->close();
-    writer_r2->close();
+    close_both(*writer_r1, *writer_r2);
     return result;
 }
 
@@ -460,8 +469,7 @@ cifi::ProcessingResult process_reads_custom(
         process_fastq_reads(input_path, config, *writer_r1, *writer_r2, result);
     }
 
-    writer_r1->close();
-    writer_r2->close();
+    close_both(*writer_r1, *writer_r2);
     return result;
 }
 
@@ -484,6 +492,7 @@ NB_MODULE(_core, m) {
         .def("is_fast_mode", &cifi::Statistics::is_fast_mode)
         .def("values", &cifi::Statistics::values)
         .def("binned", &cifi::Statistics::binned, nb::arg("num_bins"),
+             nb::arg("integer_bins") = false,
              "Equal-width histogram as (bin_edges, counts); avoids copying every value.");
 
     // ProcessingResult
